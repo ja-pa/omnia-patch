@@ -50,12 +50,21 @@ create_patch() {
 		patch_dir="routing"
 	;;
 
+	printing)
+		git_url="https://github.com/miska/openwrt-printing-packages.git"
+		git_hash="9c305e35dcf4c620c01ad426c61d9c720dbd91ed"
+		#clone_dir="printing"
+		clone_dir="openwrt-printing-packages"
+		patch_dir="openwrt-printing-packages"
+	;;
+
 	packages|*)
 		git_url="https://github.com/openwrt/packages.git"
 		git_hash="5fdb011c357c3b79bbb19d934b57cfed2ff00aa0"
 		clone_dir="packages"
 		patch_dir="packages"
 	;;
+
 	esac
 
 
@@ -71,7 +80,7 @@ create_patch() {
 	git commit . -m " commit applied patches"
 	popd
 
-	tmp_pkg_dir=$(find tmp/packages -maxdepth 2 -name $pkg_name|head -n 1 |xargs realpath)
+	tmp_pkg_dir=$(find tmp/$patch_dir -maxdepth 2 -name $pkg_name|head -n 1 |xargs realpath)
 
 	if [ ! -e $tmp_pkg_dir ]; then
 		echo "Error package $pkg_name does not exists!!!"
