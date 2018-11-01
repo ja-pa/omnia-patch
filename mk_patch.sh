@@ -53,9 +53,8 @@ create_patch() {
 	printing)
 		git_url="https://github.com/miska/openwrt-printing-packages.git"
 		git_hash="9c305e35dcf4c620c01ad426c61d9c720dbd91ed"
-		#clone_dir="printing"
 		clone_dir="openwrt-printing-packages"
-		patch_dir="openwrt-printing-packages"
+		patch_dir="printing"
 	;;
 
 	packages|*)
@@ -80,7 +79,7 @@ create_patch() {
 	git commit . -m " commit applied patches"
 	popd
 
-	tmp_pkg_dir=$(find tmp/$patch_dir -maxdepth 2 -name $pkg_name|head -n 1 |xargs realpath)
+	tmp_pkg_dir=$(find tmp/$clone_dir -maxdepth 2 -name $pkg_name|head -n 1 |xargs realpath)
 
 	if [ ! -e $tmp_pkg_dir ]; then
 		echo "Error package $pkg_name does not exists!!!"
@@ -193,7 +192,8 @@ get_patch_number() {
 }
 
 update_patches() {
-	branch_name=kernel-modules
+	#branch_name=kernel-modules
+	branch_name=$1
 	#branch_name=test
 
 	rm -rf tmp/update_patches/
@@ -265,7 +265,7 @@ patch_feeds() {
 	fi
 
 }
-
+!
 
 case $1 in
 list)
@@ -276,8 +276,12 @@ make)
 	create_patch $2 $3
 ;;
 update)
-	echo "Update patches and feeds"
-	update_patches
+	echo "Update patches and feeds from branch $1"
+	if [ -z "$2" ]; then
+		echo "You have to set branch!"
+	else
+		update_patches $2
+	fi
 ;;
 patch-feeds)
 	patch_feeds
