@@ -19,11 +19,10 @@ get_upstream() {
 
 update_package_sdk() {
 	local pkg_name="$1"
-	local feed_name="turrispackages"
+	local feed_name="$2" # "turrispackages"
 	local run_dir=$(pwd)
 
 	get_upstream packages
-	echo "find $run_dir/feeds/$feed_name -maxdepth 3 -name $pkg_name|grep -v tmp|head -n 1|xargs realpath"
 	local pkg_dir=$(find $run_dir/feeds/$feed_name -maxdepth 3 -name $pkg_name|grep -v tmp|head -n 1|xargs realpath)
 	local upstream_pkg_dir=$(find $run_dir/tmp/upstream_up/packages -maxdepth 3 -name $pkg_name|head -n 1)
 
@@ -97,7 +96,8 @@ openwrt_bump_feed() {
 print_help() {
 
 	echo "Help:"
-	echo "update <package-name>"
+	echo "update-packages <package-name>	# update package from packages feed"
+	echo "update-turris <package-name>	# update package from turrispackages feed"
 	echo "commit <package-name>"
 	echo "bump-feed <branch-name>"
 
@@ -105,8 +105,11 @@ print_help() {
 
 
 case $1 in
-update)
-	[ ! -z "$2" ] && update_package_sdk $2
+update-packages)
+	[ ! -z "$2" ] && update_package_sdk $2 packages
+;;
+update-turris)
+	[ ! -z "$2" ] && update_package_sdk $2 packages
 ;;
 commit)
 
