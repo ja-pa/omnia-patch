@@ -1,23 +1,50 @@
 #!/bin/bash
-
+set -o errexit -o nounset
 
 AUTORUN_MELD=True
 RUN_DIR=$(pwd)
 
 
-get_upstream() {
 
-	local feed_name="$1"
+clone_repo() {
+	local dir_name="$1"	# where should we clone
+	local feed_name="$2"
+	local branch_name="$3"	# test,master,dev-something
+	local repo_type="$4"	# github or gitlab
+	local clone_depth="$5"
+
+	# every operation is done inside openwrt/tmp
 	cd tmp
-	[ -d "upstream_up" ] && rm -rf upstream_up
-	mkdir upstream_up
-	cd upstream_up
-	git clone --depth 1  https://github.com/openwrt/$feed_name.git
+	[ -d "$dir_name" ] && rm -rf $dir_name
+	mkdir $dir_name
+	cd $dir_name || exit
+
+
+	if [ "$repo_type" == "github" ]; then
+		url="https://github.com/openwrt"
+	else
+		url="git@gitlab.labs.nic.cz:turris"
+	fi
+
+	if [ "$clone_depth" == "full" ]; then
+
+		git clone -b "$branch_name" $url/$feed_name.git
+	else
+		git clone -b "$branch_name" --depth 1 $url/$feed_name.git
+	fi
+
 	cd ..
 	cd ..
 }
 
+get_upstream() {
+	local feed_name="$1"
+	clone_repo "upstream_up" "$feed_name" "master" "github" "nofull"
+}
+
 update_package_sdk() {
+	# update packages inside openwrt/feed directory from
+	# upstream source
 	local pkg_name="$1"
 	local feed_name="$2" # "turrispackages"
 	local run_dir=$(pwd)
@@ -26,8 +53,12 @@ update_package_sdk() {
 	local pkg_dir=$(find $run_dir/feeds/$feed_name -maxdepth 3 -name $pkg_name|grep -v tmp|head -n 1|xargs realpath)
 	local upstream_pkg_dir=$(find $run_dir/tmp/upstream_up/packages -maxdepth 3 -name $pkg_name|head -n 1)
 
-	echo "meld $pkg_dir $upstream_pkg_dir"
-	meld $pkg_dir $upstream_pkg_dir
+	#echo "meld $pkg_dir $upstream_pkg_dir"
+	if [ "$AUTORUN_MELD" == "True" ]; then
+		meld $pkg_dir $upstream_pkg_dir
+	else
+		echo "Could not run meld"
+	fi
 }
 
 commit_package() {
@@ -37,51 +68,45 @@ commit_package() {
 	local feed_name="turrispackages"
 
 	local run_dir=$(pwd)
-	cd tmp
-	[ -d "commit_changes" ] && rm -rf commit_changes
-	mkdir commit_changes
-	cd commit_changes
-	git clone -b $branch_name git@gitlab.labs.nic.cz:turris/turris-os-packages.git
-	cd ..
-	cd ..
+
+
+	clone_repo "commit_changes" "turris-os-packages" "$branch_name" "gitlab" "full"
+
 	local pkg_dir_new=$(find $run_dir/tmp/commit_changes/turris-os-packages -maxdepth 3 -name $pkg_name|head -n 1)
 	local pkg_dir=$(find $run_dir/feeds/$feed_name -maxdepth 3 -name $pkg_name|grep -v tmp|head -n 1|xargs realpath)
 
+
+	# copy update package and prepare it for commit
 	mv $pkg_dir_new $pkg_dir_new.old
 	echo "Copy updated version"
-	echo "cp -r $pkg_dir $pkg_dir_new"
 	cp -r $pkg_dir $pkg_dir_new
-	echo "dir with prepared changes"
-	echo "$pkg_dir_new"
 	cd $pkg_dir_new/..
 	git commit $pkg_name
 	git status
 
 
-	echo "commit changes"
+	echo "Commit changes"
+	echo "------------------------------------------"
+	echo "To commit changes go to:"
+	echo "$pkg_dir_new"
+	echo "------------------------------------------"
 }
 
 openwrt_bump_feed() {
 	local branch_name="$1"
-	cd tmp
-	[ -d "bump_openwrt" ] && rm -rf bump_openwrt
-	mkdir bump_openwrt
-	[ -d "bump_turris" ] && rm -rf bump_turris
-	mkdir bump_turris
 
-	cd bump_turris
-	git clone -b $branch_name git@gitlab.labs.nic.cz:turris/turris-os-packages.git
-	cd turris-os-packages
+	# get last commit hash
+	clone_repo "bump_turris" "turris-os-packages" "$branch_name" "gitlab" "full"
+	cd tmp/bump_turris/turris-os-packages || exit -1
 	last_commit=$(git rev-parse HEAD)
-	echo "aaaaaaaaaaaaaaaaaa"
-	echo "$last_commit"
-	cd ..
-	cd ..
-	cd bump_openwrt
-	git clone -b $branch_name git@gitlab.labs.nic.cz:turris/openwrt.git
-	cd openwrt
+	cd ../../..
+
+	# update commit hash in feeds.conf.default
+	clone_repo "bump_openwrt" "openwrt" "$branch_name" "gitlab" "full"
+	cd tmp/bump_openwrt/openwrt
 	sed -i "s|src-git turrispackages https://gitlab.labs.nic.cz/turris/turris-os-packages.git^.*|src-git turrispackages https://gitlab.labs.nic.cz/turris/turris-os-packages.git^$last_commit|g" feeds.conf.default
 	git commit feeds.conf.default
+	set +o +e #rrexit
 	git log -p
 
 	echo "Push changes to $branch_name [y/n]"
@@ -98,25 +123,28 @@ print_help() {
 	echo "Help:"
 	echo "update-packages <package-name>	# update package from packages feed"
 	echo "update-turris <package-name>	# update package from turrispackages feed"
-	echo "commit <package-name>"
-	echo "bump-feed <branch-name>"
+	echo "commit <package-name> <branch-name>"
+	echo "bump-feed <branch-name>		# dev-something"
 
 }
 
+if [ $# -eq 0 ]; then
+	print_help
+	exit
+fi
 
-case $1 in
+case "$1" in
 update-packages)
 	[ ! -z "$2" ] && update_package_sdk "$2" packages
 ;;
 update-turris)
-	[ ! -z "$2" ] && update_package_sdk "$2" packages
+	[ ! -z "$2" ] && update_package_sdk "$2" turrispackages
 ;;
 commit)
-
-	[ ! -z "$2" ] && commit_package "$2" dev-honza
+	[ ! -z "$2" ] && [ ! -z "$3" ] && commit_package "$2" "$3"
 ;;
 bump-feed)
-	openwrt_bump_feed dev-honza
+	[ ! -z "$2" ] && openwrt_bump_feed "$2"
 ;;
 help|*)
 	print_help
