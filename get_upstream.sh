@@ -84,9 +84,9 @@ openwrt_bump_feed() {
 	git commit feeds.conf.default
 	git log -p
 
-	echo "Push changes to $branch-name [y/n]"
-	read push_var
-	if [ "$push_var" == "y"]; then
+	echo "Push changes to $branch_name [y/n]"
+	read -r push_var
+	if [ "$push_var" == "y" ]; then
 		git push
 	fi
 
@@ -106,14 +106,14 @@ print_help() {
 
 case $1 in
 update-packages)
-	[ ! -z "$2" ] && update_package_sdk $2 packages
+	[ ! -z "$2" ] && update_package_sdk "$2" packages
 ;;
 update-turris)
-	[ ! -z "$2" ] && update_package_sdk $2 packages
+	[ ! -z "$2" ] && update_package_sdk "$2" packages
 ;;
 commit)
 
-	[ ! -z "$2" ] && commit_package $2 dev-honza
+	[ ! -z "$2" ] && commit_package "$2" dev-honza
 ;;
 bump-feed)
 	openwrt_bump_feed dev-honza
