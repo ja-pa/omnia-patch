@@ -36,6 +36,6 @@ get_upstream.sh should be copied into **openwrt** root directory.
 ```
 update-packages <package-name>	# update package from packages feed
 update-turris <package-name>	# update package from turrispackages feed
-commit <package-name>
+commit <package-name> <branch-name> # prepare commit for turris-os-packages repo
 bump-feed <branch-name>
 ```
