@@ -15,9 +15,9 @@ clone_repo() {
 
 	# every operation is done inside openwrt/tmp
 	cd tmp
-	[ -d "$dir_name" ] && rm -rf $dir_name
-	mkdir $dir_name
-	cd $dir_name || exit
+	[ -d "$dir_name" ] && rm -rf "$dir_name"
+	mkdir "$dir_name"
+	cd "$dir_name" || exit
 
 
 	if [ "$repo_type" == "github" ]; then
@@ -28,9 +28,9 @@ clone_repo() {
 
 	if [ "$clone_depth" == "full" ]; then
 
-		git clone -b "$branch_name" $url/$feed_name.git
+		git clone -b "$branch_name" "$url/$feed_name.git"
 	else
-		git clone -b "$branch_name" --depth 1 $url/$feed_name.git
+		git clone -b "$branch_name" --depth 1 "$url/$feed_name.git"
 	fi
 
 	cd ..
@@ -47,15 +47,16 @@ update_package_sdk() {
 	# upstream source
 	local pkg_name="$1"
 	local feed_name="$2" # "turrispackages"
-	local run_dir=$(pwd)
+	local pkg_dir
+	local upstream_pkg_dir
 
 	get_upstream packages
-	local pkg_dir=$(find $run_dir/feeds/$feed_name -maxdepth 3 -name $pkg_name|grep -v tmp|head -n 1|xargs realpath)
-	local upstream_pkg_dir=$(find $run_dir/tmp/upstream_up/packages -maxdepth 3 -name $pkg_name|head -n 1)
+	pkg_dir=$(find "$RUN_DIR/feeds/$feed_name" -maxdepth 3 -name "$pkg_name"|grep -v tmp|head -n 1|xargs realpath)
+	upstream_pkg_dir=$(find "$RUN_DIR/tmp/upstream_up/packages" -maxdepth 3 -name "$pkg_name"|head -n 1)
 
 	#echo "meld $pkg_dir $upstream_pkg_dir"
 	if [ "$AUTORUN_MELD" == "True" ]; then
-		meld $pkg_dir $upstream_pkg_dir
+		meld "$pkg_dir" "$upstream_pkg_dir"
 	else
 		echo "Could not run meld"
 	fi
@@ -66,22 +67,21 @@ commit_package() {
 	local pkg_name="$1"
 	local branch_name="$2"
 	local feed_name="turrispackages"
-
-	local run_dir=$(pwd)
-
+	local pkg_dir_new
+	local pkg_dir
 
 	clone_repo "commit_changes" "turris-os-packages" "$branch_name" "gitlab" "full"
 
-	local pkg_dir_new=$(find $run_dir/tmp/commit_changes/turris-os-packages -maxdepth 3 -name $pkg_name|head -n 1)
-	local pkg_dir=$(find $run_dir/feeds/$feed_name -maxdepth 3 -name $pkg_name|grep -v tmp|head -n 1|xargs realpath)
+	pkg_dir_new=$(find "$RUN_DIR/tmp/commit_changes/turris-os-packages" -maxdepth 3 -name "$pkg_name"|head -n 1)
+	pkg_dir=$(find "$RUN_DIR/feeds/$feed_name" -maxdepth 3 -name "$pkg_name"|grep -v tmp|head -n 1|xargs realpath)
 
 
 	# copy update package and prepare it for commit
-	mv $pkg_dir_new $pkg_dir_new.old
+	mv "$pkg_dir_new" "$pkg_dir_new.old"
 	echo "Copy updated version"
-	cp -r $pkg_dir $pkg_dir_new
-	cd $pkg_dir_new/..
-	git commit $pkg_name
+	cp -r "$pkg_dir" "$pkg_dir_new"
+	cd "$pkg_dir_new/.."
+	git commit "$pkg_name"
 	git status
 
 
@@ -106,9 +106,12 @@ openwrt_bump_feed() {
 	cd tmp/bump_openwrt/openwrt
 	sed -i "s|src-git turrispackages https://gitlab.labs.nic.cz/turris/turris-os-packages.git^.*|src-git turrispackages https://gitlab.labs.nic.cz/turris/turris-os-packages.git^$last_commit|g" feeds.conf.default
 	git commit feeds.conf.default
+
+	# show log
 	set +o +e #rrexit
 	git log -p
 
+	# push changes
 	echo "Push changes to $branch_name [y/n]"
 	read -r push_var
 	if [ "$push_var" == "y" ]; then
